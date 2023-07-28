@@ -36,7 +36,7 @@
         :readonly="!editable || readonly || isDatesPicker || type === 'week'"
         :label="label"
         :tabindex="tabindex"
-        :validate-event="validateEvent"
+        :validate-event="false"
         @input="onUserInput"
         @focus="handleFocusInput"
         @blur="handleBlurInput"
@@ -74,16 +74,7 @@
       <div
         v-else
         ref="inputRef"
-        :class="[
-          nsDate.b('editor'),
-          nsDate.bm('editor', type),
-          nsInput.e('wrapper'),
-          nsDate.is('disabled', pickerDisabled),
-          nsDate.is('active', pickerVisible),
-          nsRange.b('editor'),
-          pickerSize ? nsRange.bm('editor', pickerSize) : '',
-          $attrs.class,
-        ]"
+        :class="rangeInputKls"
         :style="($attrs.style as any)"
         @click="handleFocusInput"
         @mouseenter="onMouseEnter"
@@ -134,13 +125,7 @@
         />
         <el-icon
           v-if="clearIcon"
-          :class="[
-            nsInput.e('icon'),
-            nsRange.e('close-icon'),
-            {
-              [nsRange.e('close-icon--hidden')]: !showClose,
-            },
-          ]"
+          :class="clearIconKls"
           @click="onClearIconClick"
         >
           <component :is="clearIcon" />
@@ -168,15 +153,20 @@
   </el-tooltip>
 </template>
 <script lang="ts" setup>
-import { computed, inject, nextTick, provide, ref, unref, watch } from 'vue'
+import {
+  computed,
+  inject,
+  nextTick,
+  provide,
+  ref,
+  unref,
+  useAttrs,
+  watch,
+} from 'vue'
 import { isEqual } from 'lodash-unified'
 import { onClickOutside } from '@vueuse/core'
-import {
-  useFormItem,
-  useLocale,
-  useNamespace,
-  useSize,
-} from '@element-plus/hooks'
+import { useLocale, useNamespace } from '@element-plus/hooks'
+import { useFormItem, useFormSize } from '@element-plus/components/form'
 import ElInput from '@element-plus/components/input'
 import ElIcon from '@element-plus/components/icon'
 import ElTooltip from '@element-plus/components/tooltip'
@@ -217,6 +207,7 @@ const emit = defineEmits([
   'visible-change',
   'keydown',
 ])
+const attrs = useAttrs()
 
 const { lang } = useLocale()
 
@@ -236,6 +227,23 @@ const valueOnOpen = ref<TimePickerDefaultProps['modelValue'] | null>(null)
 let hasJustTabExitedInput = false
 let ignoreFocusEvent = false
 
+const rangeInputKls = computed(() => [
+  nsDate.b('editor'),
+  nsDate.bm('editor', props.type),
+  nsInput.e('wrapper'),
+  nsDate.is('disabled', pickerDisabled.value),
+  nsDate.is('active', pickerVisible.value),
+  nsRange.b('editor'),
+  pickerSize ? nsRange.bm('editor', pickerSize.value) : '',
+  attrs.class,
+])
+
+const clearIconKls = computed(() => [
+  nsInput.e('icon'),
+  nsRange.e('close-icon'),
+  !showClose.value ? nsRange.e('close-icon--hidden') : '',
+])
+
 watch(pickerVisible, (val) => {
   if (!val) {
     userInput.value = null
@@ -243,7 +251,11 @@ watch(pickerVisible, (val) => {
       emitChange(props.modelValue)
     })
   } else {
-    valueOnOpen.value = props.modelValue
+    nextTick(() => {
+      if (val) {
+        valueOnOpen.value = props.modelValue
+      }
+    })
   }
 })
 const emitChange = (
@@ -304,7 +316,7 @@ const focusOnInputBox = () => {
 
 const onPick = (date: any = '', visible = false) => {
   if (!visible) {
-    focusOnInputBox()
+    ignoreFocusEvent = true
   }
   pickerVisible.value = visible
   let result
@@ -334,8 +346,17 @@ const onKeydownPopperContent = (event: KeyboardEvent) => {
 
 const onHide = () => {
   pickerActualVisible.value = false
+  pickerVisible.value = false
   ignoreFocusEvent = false
   emit('visible-change', false)
+}
+
+const handleOpen = () => {
+  pickerVisible.value = true
+}
+
+const handleClose = () => {
+  pickerVisible.value = false
 }
 
 const focus = (focusStartInput = true, isIgnoreFocusEvent = false) => {
@@ -505,6 +526,7 @@ const onMouseLeave = () => {
   showClose.value = false
 }
 const onTouchStartInput = (event: TouchEvent) => {
+  if (props.readonly || pickerDisabled.value) return
   if (
     (event.touches[0].target as HTMLElement)?.tagName !== 'INPUT' ||
     refInput.value.includes(document.activeElement as HTMLInputElement)
@@ -516,7 +538,7 @@ const isRangeInput = computed(() => {
   return props.type.includes('range')
 })
 
-const pickerSize = useSize()
+const pickerSize = useFormSize()
 
 const popperEl = computed(() => unref(refPopper)?.popperRef?.contentRef)
 const actualInputRef = computed(() => {
@@ -732,6 +754,14 @@ defineExpose({
    * @description emit blur event
    */
   handleBlurInput,
+  /**
+   * @description opens picker
+   */
+  handleOpen,
+  /**
+   * @description closes picker
+   */
+  handleClose,
   /**
    * @description pick item manually
    */

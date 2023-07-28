@@ -27,7 +27,9 @@
 <script lang="ts" setup>
 // @ts-nocheck
 import { computed, provide, useSlots } from 'vue'
-import { useNamespace, useSize } from '@element-plus/hooks'
+import { flattedChildren } from '@element-plus/utils'
+import { useNamespace } from '@element-plus/hooks'
+import { useFormSize } from '@element-plus/components/form'
 import ElDescriptionsRow from './descriptions-row.vue'
 import { descriptionsKey } from './token'
 import { descriptionProps } from './description'
@@ -40,26 +42,13 @@ const props = defineProps(descriptionProps)
 
 const ns = useNamespace('descriptions')
 
-const descriptionsSize = useSize()
+const descriptionsSize = useFormSize()
 
 const slots = useSlots()
 
 provide(descriptionsKey, props)
 
 const descriptionKls = computed(() => [ns.b(), ns.m(descriptionsSize.value)])
-
-const flattedChildren = (children) => {
-  const temp = Array.isArray(children) ? children : [children]
-  const res = []
-  temp.forEach((child) => {
-    if (Array.isArray(child.children)) {
-      res.push(...flattedChildren(child.children))
-    } else {
-      res.push(child)
-    }
-  })
-  return res
-}
 
 const filledNode = (node, span, count, isLast = false) => {
   if (!node.props) {
